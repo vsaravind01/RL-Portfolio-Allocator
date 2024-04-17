@@ -26,6 +26,22 @@ if not os.path.exists("./" + config.RESULTS_DIR):
     os.makedirs("./" + config.RESULTS_DIR)
 
 def get_data(tickers, start_date, end_date):
+    """Get data for the tickers
+
+    Parameters
+    ----------
+    tickers : list
+        list of tickers to get data for
+    start_date : str
+        start date for the data in the format 'YYYY-MM-DD'
+    end_date : str
+        end date for the data in the format 'YYYY-MM-DD'
+
+    Returns
+    -------
+    `pd.DataFrame`
+        Data for the tickers
+    """
     logger.info(f"Getting data for tickers: {tickers}")
     if not all([ticker in TICKERS for ticker in tickers]):
         raise ValueError("All tickers must be in the DOW_30_TICKER list")
@@ -70,6 +86,24 @@ def generate_environment(
     transaction_cost_pct=0,
     tech_indicator_list=["macd", "rsi_30", "cci_30", "dx_30"],
 ):
+    """Generate the environment
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Data for the tickers
+    initial_amount : int
+        Initial amount to invest
+    transaction_cost_pct : float, optional
+        Transaction cost percentage, by default 0
+    tech_indicator_list : list, optional
+        List of technical indicators to use, by default ["macd", "rsi_30", "cci_30", "dx_30"]
+
+    Returns
+    -------
+    StockPortfolioEnv
+        The environment
+    """
     stock_dimension = len(df.tic.unique())
     state_space = stock_dimension
     env_kwargs = {
@@ -87,10 +121,27 @@ def generate_environment(
 
 
 def get_agent(env):
+    """Get the DRL agent"""
     return DRLAgent(env)
 
 
 def get_model(model_name, agent, pretrained=True):
+    """Get the model
+
+    Parameters
+    ----------
+    model_name : str
+        Name of the model
+    agent : DRLAgent
+        The DRL agent
+    pretrained : bool, optional
+        Whether to load a pretrained model, by default True
+
+    Returns
+    -------
+    model
+        The model
+    """
     model_params = MODEL_PARAMS_MAP[model_name]
     model = agent.get_model(model_name, model_kwargs=model_params)
     if pretrained:
@@ -98,7 +149,28 @@ def get_model(model_name, agent, pretrained=True):
     return model
 
 
-def get_prediction(models, env):
+def get_prediction(models: list, env: StockPortfolioEnv):
+    """Get the predictions
+
+    Parameters
+    ----------
+    models : list
+        List of models
+    env : StockPortfolioEnv
+        The environment
+
+    Returns
+    -------
+    dict
+        The predictions for each model in the format:
+        {
+            model_name: {
+                "daily_return": pd.DataFrame,
+                "actions": pd.DataFrame,
+            },
+            ...
+        }
+    """
     result = {}
     for model in models:
         df_daily_return, df_actions = DRLAgent.DRL_prediction(model=model, environment=env)
@@ -110,6 +182,25 @@ def get_prediction(models, env):
 
 
 def get_stats(predictions):
+    """Get the statistics for the predictions
+
+    Parameters
+    ----------
+    predictions : dict
+        The predictions for each model in the format:
+        {
+            model_name: {
+                "daily_return": pd.DataFrame,
+                "actions": pd.DataFrame,
+            },
+            ...
+        }
+
+    Returns
+    -------
+    pd.Series
+        The statistics for each model (annual return, cumulative returns, max drawdown, sharpe ratio, annual volatility)
+    """
     stats = {}
     for prediction in predictions:
         daily_return = predictions[prediction]["daily_return"]
@@ -124,6 +215,24 @@ def get_stats(predictions):
 
 
 def get_profit(stats, env):
+    """Get the profit for each prediction
+
+    Parameters
+    ----------
+    stats: pd.Series
+        The statistics for each model (annual return, cumulative returns, max drawdown, sharpe ratio, annual volatility)
+    env: StockPortfolioEnv
+        The environment
+
+    Returns
+    -------
+    dict
+        The profit for each prediction in the format:
+        {
+            model_name: profit,
+            ...
+        }
+    """
     profit = {}
     for prediction in stats:
         profit[prediction] = env.initial_amount * stats[prediction]["Cumulative returns"] / 100
@@ -131,6 +240,31 @@ def get_profit(stats, env):
 
 
 def get_splits(predictions, amount):
+    """Get the splits for the predictions. The splits are the actions multiplied by the amount.
+
+    Parameters
+    ----------
+    predictions : dict
+        The predictions for each model in the format:
+        {
+            model_name: {
+                "daily_return": pd.DataFrame,
+                "actions": pd.DataFrame,
+            },
+            ...
+        }
+    amount : float
+        The amount to multiply the actions by to get the splits for each prediction.
+
+    Returns
+    -------
+    dict
+        The splits for each prediction in the format:
+        {
+            model_name: pd.DataFrame,
+            ...
+        }
+    """
     splits = {}
     for prediction in predictions:
         action_df = predictions[prediction]["actions"]
@@ -139,6 +273,25 @@ def get_splits(predictions, amount):
 
 
 def prediction_plot(predictions):
+    """Create a plot of the predictions
+
+    Parameters
+    ----------
+    predictions : dict
+        The predictions for each model in the format:
+        {
+            model_name: {
+                "daily_return": pd.DataFrame,
+                "actions": pd.DataFrame,
+            },
+            ...
+        }
+
+    Returns
+    -------
+    go.Figure
+        The plot of the predictions for each model in a go.Figure object
+    """
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2"]
     traces = []
     for i, prediction in enumerate(predictions):

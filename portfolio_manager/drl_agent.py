@@ -1,48 +1,10 @@
-import time
-
-import numpy as np
-import pandas as pd
 from finrl import config
-from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
-from finrl.meta.preprocessor.preprocessors import data_split
-from stable_baselines3 import A2C, DDPG, PPO, SAC, TD3
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.noise import (
-    NormalActionNoise,
-    OrnsteinUhlenbeckActionNoise,
-)
-from stable_baselines3.common.vec_env import DummyVecEnv
+from finrl.agents.stablebaselines3.models import TensorboardCallback
+from stable_baselines3 import A2C, DDPG, PPO, SAC
 
-MODELS = {"a2c": A2C, "ddpg": DDPG, "td3": TD3, "sac": SAC, "ppo": PPO}
+MODELS = {"a2c": A2C, "ddpg": DDPG, "sac": SAC, "ppo": PPO}
 
 MODEL_KWARGS = {x: config.__dict__[f"{x.upper()}_PARAMS"] for x in MODELS.keys()}
-
-NOISE = {
-    "normal": NormalActionNoise,
-    "ornstein_uhlenbeck": OrnsteinUhlenbeckActionNoise,
-}
-
-
-class TensorboardCallback(BaseCallback):
-    def __init__(self, verbose=0):
-        super().__init__(verbose)
-
-    def _on_step(self) -> bool:
-        try:
-            self.logger.record(key="train/reward", value=self.locals["rewards"][0])
-
-        except BaseException as error:
-            try:
-                self.logger.record(key="train/reward", value=self.locals["reward"][0])
-
-            except BaseException as inner_error:
-                # Handle the case where neither "rewards" nor "reward" is found
-                self.logger.record(key="train/reward", value=None)
-                # Print the original error and the inner error for debugging
-                print("Original Error:", error)
-                print("Inner Error:", inner_error)
-        return True
-
 
 class DRLAgent:
     """Provides implementations for DRL algorithms
@@ -76,6 +38,30 @@ class DRLAgent:
         seed=None,
         tensorboard_log=None,
     ):
+        """Get the model with the corresponding algorithm.
+
+        Parameters
+        ----------
+        model_name: str
+            Name of the model to use
+        policy: str
+            The policy model to use (MlpPolicy, CnnPolicy, ...)
+        policy_kwargs: dict
+            Additional arguments to be passed to the policy on creation
+        model_kwargs: dict
+            Additional arguments to be passed to the model on creation
+        verbose: int
+            The verbosity level: 0 none, 1 training information, 2 tensorflow debug
+        seed: int
+            Seed for the pseudo-random generators
+        tensorboard_log: str
+            the log location for tensorboard
+
+        Returns
+        -------
+        model
+            the respective model
+        """
         if model_name not in MODELS:
             raise ValueError(
                 f"Model '{model_name}' not found in MODELS."
@@ -84,11 +70,6 @@ class DRLAgent:
         if model_kwargs is None:
             model_kwargs = MODEL_KWARGS[model_name]
 
-        if "action_noise" in model_kwargs:
-            n_actions = self.env.action_space.shape[-1]
-            model_kwargs["action_noise"] = NOISE[model_kwargs["action_noise"]](
-                mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions)
-            )
         print(model_kwargs)
         return MODELS[model_name](
             policy=policy,
@@ -101,9 +82,23 @@ class DRLAgent:
         )
 
     @staticmethod
-    def train_model(
-        model, tb_log_name, total_timesteps=5000
-    ):  # this function is static method, so it can be called without creating an instance of the class
+    def train_model(model, tb_log_name, total_timesteps=5000):
+        """Train the model
+
+        Parameters
+        ----------
+        model: model
+            the model to be trained
+        tb_log_name: str
+            the log name for tensorboard
+        total_timesteps: int
+            the total timesteps to train the model (default is 5000)
+
+        Returns
+        -------
+        model
+            the trained model
+        """
         model = model.learn(
             total_timesteps=total_timesteps,
             tb_log_name=tb_log_name,
@@ -113,24 +108,36 @@ class DRLAgent:
 
     @staticmethod
     def DRL_prediction(model, environment, deterministic=True):
-        """make a prediction and get results"""
+        """make a prediction and get results
+
+        Parameters
+        ----------
+        model: model
+            the trained model
+        environment: gym environment class
+            the testing environment
+        deterministic: bool
+            whether the prediction should be deterministic or not
+
+        Returns
+        -------
+        account_memory: list
+            the account value for each day
+        actions_memory: list
+            the action for each day
+        """
         test_env, test_obs = environment.get_sb_env()
         account_memory = None  # This help avoid unnecessary list creation
         actions_memory = None  # optimize memory consumption
-        # state_memory=[] #add memory pool to store states
 
         test_env.reset()
         max_steps = len(environment.df.index.unique()) - 1
 
         for i in range(len(environment.df.index.unique())):
             action, _states = model.predict(test_obs, deterministic=deterministic)
-            # account_memory = test_env.env_method(method_name="save_asset_memory")
-            # actions_memory = test_env.env_method(method_name="save_action_memory")
             test_obs, rewards, dones, info = test_env.step(action)
 
-            if (
-                i == max_steps - 1
-            ):  # more descriptive condition for early termination to clarify the logic
+            if i == max_steps - 1:
                 account_memory = test_env.env_method(method_name="save_asset_memory")
                 actions_memory = test_env.env_method(method_name="save_action_memory")
             # add current state to state memory
