@@ -2,6 +2,7 @@ import datetime
 
 import coloredlogs
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from matplotlib import colors
@@ -86,11 +87,24 @@ def app():
         main_page.plotly_chart(fig, use_container_width=True)
 
         main_page.subheader("Statistics")
-        main_page.dataframe(pd.DataFrame(stats).T)
+        stats_df = pd.DataFrame(stats)
+        filter_columns = [
+            "Annual return",
+            "Cumulative returns",
+            "Max drawdown",
+            "Sharpe ratio",
+            "Annual volatility",
+        ]
+        main_page.dataframe(stats_df.loc[filter_columns].T, use_container_width=True)
 
         main_page.subheader("Allocations (actions)")
         for split in splits:
             main_page.write(f"Model: {split}")
             main_page.dataframe(splits[split], use_container_width=True)
+    else:
+        main_page.markdown(
+            "<h3 style='height: 30vh; display: flex; justify-content: center; text-align: center; color: grey;'>Please set model settings</h3>",
+            unsafe_allow_html=True,
+        )
 
     config_set = False
