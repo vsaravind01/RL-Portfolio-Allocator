@@ -69,7 +69,7 @@ def app():
         min_profit = min(profilts.values())
         max_profit = max(profilts.values())
         colors = [
-            "#31c571" if profit == max_profit else "#da4856" if profit == min_profit else "blue"
+            "#31c571" if profit == max_profit else "#da4856" if profit == min_profit else "#5996fc"
             for profit in profilts.values()
         ]
         fig = go.Figure(

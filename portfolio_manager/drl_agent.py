@@ -24,10 +24,6 @@ NOISE = {
 
 
 class TensorboardCallback(BaseCallback):
-    """
-    Custom callback for plotting additional values in tensorboard.
-    """
-
     def __init__(self, verbose=0):
         super().__init__(verbose)
 
