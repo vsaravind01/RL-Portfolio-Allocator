@@ -1,4 +1,6 @@
-DOW_30_TICKER = [
+from os import path
+
+TICKERS = [
     "AXP",
     "AMGN",
     "AAPL",
@@ -40,7 +42,12 @@ PPO_PARAMS = {
 
 A2C_PARAMS = {"n_steps": 10, "ent_coef": 0.005, "learning_rate": 0.0004}
 
-MODEL_MAP = {
+MODEL_PARAMS_MAP = {
     "ppo": PPO_PARAMS,
     "a2c": A2C_PARAMS,
+}
+
+MODEL_TRAINED_MAP = {
+    "ppo": path.join(path.dirname(__file__), "trained_models/ppo_dow30_2010-01-01_2023-12-31"),
+    "a2c": path.join(path.dirname(__file__), "trained_models/a2c_dow30_2010-01-01_2023-12-31"),
 }

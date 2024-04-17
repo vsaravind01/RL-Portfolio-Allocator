@@ -1,15 +1,33 @@
+import logging
+import os
+from os import path
+
 import pandas as pd
 import plotly.graph_objs as go
-from data_loader import Yahoo_Downloader
-from drl_agent import DRLAgent
-from env import StockPortfolioEnv
+from finrl import config
 from finrl.meta.preprocessor.preprocessors import FeatureEngineer
-from settings import DOW_30_TICKER, MODEL_MAP
-from utils import data_split
+from pyfolio import timeseries
 
+from portfolio_manager.data_loader import Yahoo_Downloader
+from portfolio_manager.drl_agent import DRLAgent
+from portfolio_manager.env import StockPortfolioEnv
+from portfolio_manager.settings import MODEL_PARAMS_MAP, MODEL_TRAINED_MAP, TICKERS
+from portfolio_manager.utils import convert_daily_return_to_pyfolio_ts, data_split
+
+logger = logging.getLogger(__name__)
+
+if not os.path.exists("./" + config.DATA_SAVE_DIR):
+    os.makedirs("./" + config.DATA_SAVE_DIR)
+if not os.path.exists("./" + config.TRAINED_MODEL_DIR):
+    os.makedirs("./" + config.TRAINED_MODEL_DIR)
+if not os.path.exists("./" + config.TENSORBOARD_LOG_DIR):
+    os.makedirs("./" + config.TENSORBOARD_LOG_DIR)
+if not os.path.exists("./" + config.RESULTS_DIR):
+    os.makedirs("./" + config.RESULTS_DIR)
 
 def get_data(tickers, start_date, end_date):
-    if all([ticker in DOW_30_TICKER for ticker in tickers]):
+    logger.info(f"Getting data for tickers: {tickers}")
+    if not all([ticker in TICKERS for ticker in tickers]):
         raise ValueError("All tickers must be in the DOW_30_TICKER list")
     df = Yahoo_Downloader(
         ticker_list=tickers, start_date=start_date, end_date=end_date
@@ -72,23 +90,66 @@ def get_agent(env):
     return DRLAgent(env)
 
 
-def get_model(model_name, agent):
-    model_params = MODEL_MAP[model_name]
+def get_model(model_name, agent, pretrained=True):
+    model_params = MODEL_PARAMS_MAP[model_name]
     model = agent.get_model(model_name, model_kwargs=model_params)
+    if pretrained:
+        model.load(MODEL_TRAINED_MAP[model_name])
     return model
 
 
-def prediction_plot(models, env):
-    traces = []
+def get_prediction(models, env):
+    result = {}
     for model in models:
         df_daily_return, df_actions = DRLAgent.DRL_prediction(model=model, environment=env)
+        result[model.__class__.__name__] = {
+            "daily_return": df_daily_return,
+            "actions": df_actions,
+        }
+    return result
+
+
+def get_stats(predictions):
+    stats = {}
+    for prediction in predictions:
+        daily_return = predictions[prediction]["daily_return"]
+        pyfolio_ts = convert_daily_return_to_pyfolio_ts(daily_return)
+        stats[prediction] = timeseries.perf_stats(
+            returns=pyfolio_ts,
+            factor_returns=pyfolio_ts,
+            positions=None,
+            transactions=None,
+        )
+    return stats
+
+
+def get_profit(stats, env):
+    profit = {}
+    for prediction in stats:
+        profit[prediction] = env.initial_amount * stats[prediction]["Cumulative returns"] / 100
+    return profit
+
+
+def get_splits(predictions, amount):
+    splits = {}
+    for prediction in predictions:
+        action_df = predictions[prediction]["actions"]
+        splits[prediction] = action_df.multiply(amount)
+    return splits
+
+
+def prediction_plot(predictions):
+    colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2"]
+    traces = []
+    for i, prediction in enumerate(predictions):
+        df_daily_return = predictions[prediction]["daily_return"]
         df_cumprod = (df_daily_return.daily_return + 1).cumprod() - 1
         time_ind = pd.Series(df_daily_return.date)
         trace_portfolio = go.Scatter(
-            x=time_ind, y=df_cumprod, mode="lines", name=model.__class__.__name__
+            x=time_ind, y=df_cumprod, mode="lines", name=prediction, line=dict(color=colors[i])
         )
         traces.append(trace_portfolio)
-
+    print(traces)
     fig = go.Figure()
     for trace in traces:
         fig.add_trace(trace)
@@ -105,7 +166,7 @@ def prediction_plot(models, env):
     )
     fig.update_layout(
         title={
-            #'text': "Cumulative Return using FinRL",
+            "text": "Cumulative Return Time Series",
             "y": 0.85,
             "x": 0.5,
             "xanchor": "center",

@@ -1,3 +1,6 @@
 *.venv/
 *.vscode/
 *.DS_Store
+
+*__pycache__/
+*portfolio_manager/__pycache__/
