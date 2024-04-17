@@ -31,7 +31,7 @@ decorator==5.1.1
 deprecation==2.1.0
 distlib==0.3.8
 ecos==2.0.13
-ElegantRL==0.3.7
+ElegantRL
 empyrical==0.5.5
 exceptiongroup==1.2.0
 exchange_calendars==4.5.3
