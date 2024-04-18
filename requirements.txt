@@ -4,7 +4,7 @@ swig
 box2d
 condacolab
 PyPortfolioOpt
-finrl @ git+https://github.com/AI4Finance-Foundation/FinRL.git@d57b7517150f1eb28a09b868f17aec5b6d2cc4fb
+finrl @ git+https://github.com/AI4Finance-Foundation/FinRL.git
 yfinance
 stockstats
 gym
