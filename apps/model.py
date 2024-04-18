@@ -2,10 +2,8 @@ import datetime
 
 import coloredlogs
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from matplotlib import colors
 
 from portfolio_manager.engine import (
     generate_environment,

@@ -1,10 +1,15 @@
+import logging
+
 from finrl import config
 from finrl.agents.stablebaselines3.models import TensorboardCallback
 from stable_baselines3 import A2C, DDPG, PPO, SAC
 
+logger = logging.getLogger(__name__)
+
 MODELS = {"a2c": A2C, "ddpg": DDPG, "sac": SAC, "ppo": PPO}
 
 MODEL_KWARGS = {x: config.__dict__[f"{x.upper()}_PARAMS"] for x in MODELS.keys()}
+
 
 class DRLAgent:
     """Provides implementations for DRL algorithms
@@ -71,6 +76,7 @@ class DRLAgent:
             model_kwargs = MODEL_KWARGS[model_name]
 
         print(model_kwargs)
+        logger.info(f"model: {model_name} | {model_kwargs}")
         return MODELS[model_name](
             policy=policy,
             env=self.env,
@@ -99,10 +105,11 @@ class DRLAgent:
         model
             the trained model
         """
+        logger.info(f"Start training model - {model}")
         model = model.learn(
             total_timesteps=total_timesteps,
             tb_log_name=tb_log_name,
-            callback=TensorboardCallback(),
+            callback=TensorboardCallback(verbose=1),
         )
         return model
 
